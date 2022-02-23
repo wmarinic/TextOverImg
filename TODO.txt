@@ -1,7 +1,0 @@
-URL request example:
-curl -X POST -d "{\"url\": \"https://upload.wikimedia.org/wikipedia/commons/3/3d/Forstarbeiten_in_%C3%96sterreich.JPG\"}" http://localhost:3000/image
-
-- Add text field to the POST request
-- Add a frontend in Vue.js
-- (Extra) Improve the save file / load file approach if possible
-

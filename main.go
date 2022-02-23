@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"image"
 	"image/color"
 	"io/ioutil"
 	"log"
@@ -56,17 +58,10 @@ func homePageHandler(w http.ResponseWriter, r *http.Request) {
 		data, err := ioutil.ReadAll(res.Body)
 		checkError(err)
 
-		res.Body.Close()
-
-		/*
-		*	Naive approach to save image to file then load from file, better to somehow get an image.Image straight from response
-		 */
-		//save image to the images folder
-		ioutil.WriteFile("images/boring_image.png", data, 0666)
-
-		//load image
-		img, err := gg.LoadImage("images/boring_image.png")
+		img, _, err := image.Decode(bytes.NewReader(data))
 		checkError(err)
+
+		res.Body.Close()
 
 		// get image size
 		imgWidth := img.Bounds().Dx()

@@ -14,4 +14,3 @@ TODO:
 	- text too long?
 - Add watermark / premium, user db and login/logout functions
 - Add a frontend in Vue.js
-- (Extra QoL) Improve the save file / load file approach, directly get an image.Image from the response body
