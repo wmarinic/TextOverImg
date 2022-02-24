@@ -13,6 +13,8 @@ import (
 	"github.com/fogleman/gg"
 	"github.com/golang/freetype/truetype"
 	"golang.org/x/image/font/gofont/goregular"
+
+	"github.com/gorilla/mux"
 )
 
 //define global vars
@@ -21,25 +23,29 @@ var text string = ""
 var premium bool = false
 
 type request_struct struct {
-	Url  string
-	Text string
+	Url  string `json:"url"`
+	Text string `json:"text"`
 }
 
 type user_struct struct {
-	Username string
-	Password string
+	Username string `json:"username"`
+	Password string `json:"password"`
 }
 
 func main() {
-	http.HandleFunc("/", homePageHandler)
-	http.HandleFunc("/image", imagePageHandler)
-	http.HandleFunc("/req", parseUserReq)
-	http.HandleFunc("/user", parseLogin)
-	http.Handle("/images/", http.StripPrefix("/images/", http.FileServer(http.Dir("./images"))))
+	//Init router
+	r := mux.NewRouter()
+
+	// Route handling and endpoints
+	r.HandleFunc("/", homePageHandler).Methods("GET")
+	r.HandleFunc("/image", dispImage).Methods("GET")
+	r.HandleFunc("/image", createInspImage).Methods("POST")
+	r.HandleFunc("/user", userLogin).Methods("POST")
+	r.PathPrefix("/images/").Handler(http.StripPrefix("/images/", http.FileServer(http.Dir("./images"))))
 
 	fmt.Println("Server listening on port 3000")
 	log.Panic(
-		http.ListenAndServe(":3000", nil),
+		http.ListenAndServe(":3000", r),
 	)
 }
 
@@ -48,10 +54,9 @@ func homePageHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "<h1>Inspirationifier</h1>")
 	fmt.Fprintf(w, "<h2>Welcome to the Inspirationfier app!</h2>")
 	fmt.Fprintf(w, "<p>Please send a POST request with an image URL and the desired text.</p>")
-	fmt.Fprintf(w, "<p>Go to /image to see the result.</p>")
 }
 
-func parseLogin(w http.ResponseWriter, r *http.Request) {
+func userLogin(w http.ResponseWriter, r *http.Request) {
 	//decode response
 	decoder := json.NewDecoder(r.Body)
 
@@ -62,7 +67,7 @@ func parseLogin(w http.ResponseWriter, r *http.Request) {
 	userName := user.Username
 	passWord := user.Password
 
-	//hard coding 1 log in for now
+	//hard coding a log in for now @TODO: add db + secure pw storing
 	if userName == "test" && passWord == "test" {
 		//premium access granted
 		premium = true
@@ -72,7 +77,7 @@ func parseLogin(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func parseUserReq(w http.ResponseWriter, r *http.Request) {
+func createInspImage(w http.ResponseWriter, r *http.Request) {
 	//decode response
 	decoder := json.NewDecoder(r.Body)
 
@@ -85,29 +90,31 @@ func parseUserReq(w http.ResponseWriter, r *http.Request) {
 
 	//check the request
 	if url != "" && text != "" {
-		fmt.Println("URL and text received!")
+		fmt.Println("URL and text received.")
+
+		//get http response from url
+		res, err := http.Get(url)
+		checkError(err)
+
+		//grab the image from the response body
+		data, err := ioutil.ReadAll(res.Body)
+		checkError(err)
+
+		res.Body.Close()
+
+		//place text over img
+		textOverImg(data, premium)
+		fmt.Println("Inspirational image created.")
 	} else {
-		fmt.Println("Incomplete user request.")
+		fmt.Println("Error: Incomplete request.")
 	}
 }
 
-func imagePageHandler(w http.ResponseWriter, r *http.Request) {
+func dispImage(w http.ResponseWriter, r *http.Request) {
 	//check if url exists
 	if url != "" {
 		//check if text exists
 		if text != "" {
-			//get the http response from the url
-			res, err := http.Get(url)
-			checkError(err)
-
-			//grab the image from the response body
-			data, err := ioutil.ReadAll(res.Body)
-			checkError(err)
-
-			res.Body.Close()
-
-			imgOverText(data, premium)
-
 			fmt.Fprintf(w, "<title>Inspirationifier</title>")
 			fmt.Fprintf(w, "<h1>Inspirationifier</h1>")
 			fmt.Fprintf(w, "<img src='images/inspirational_image.png' style='width:480px;height:480px;'>")
@@ -119,18 +126,19 @@ func imagePageHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		fmt.Fprintf(w, "<title>Inspirationifier</title>")
 		fmt.Fprintf(w, "<h1>Inspirationifier</h1>")
-		fmt.Fprintf(w, "<p>Please POST an image URL</p>")
+		fmt.Fprintf(w, "<p>Please POST an image URL and text</p>")
 	}
 }
 
 //Helper Functions
+
 func checkError(err error) {
 	if err != nil {
 		log.Panic(err)
 	}
 }
 
-func imgOverText(imgData []byte, premium bool) {
+func textOverImg(imgData []byte, premium bool) {
 	//decode from []byte to image.Image
 	img, _, err := image.Decode(bytes.NewReader(imgData))
 	checkError(err)
