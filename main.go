@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/fogleman/gg"
 	"github.com/golang/freetype/truetype"
@@ -32,28 +33,30 @@ type user_struct struct {
 	Password string `json:"password"`
 }
 
+var i int = 0
+
 func main() {
 	//Init router
 	r := mux.NewRouter()
 
 	// Route handling and endpoints
-	r.HandleFunc("/", homePageHandler).Methods("GET")
-	r.HandleFunc("/image", dispImage).Methods("GET")
 	r.HandleFunc("/image", createInspImage).Methods("POST")
+	fs := http.FileServer(http.Dir("./images/"))
+	r.PathPrefix("/image/").Handler(http.StripPrefix("/image/", fs))
 	r.HandleFunc("/user", userLogin).Methods("POST")
-	r.PathPrefix("/images/").Handler(http.StripPrefix("/images/", http.FileServer(http.Dir("./images"))))
-
+	r.PathPrefix("/").Handler(http.FileServer(http.Dir("frontend/dist/")))
+	r.PathPrefix("/").HandlerFunc(IndexHandler("frontend/dist/index.html"))
 	fmt.Println("Server listening on port 3000")
 	log.Panic(
 		http.ListenAndServe(":3000", r),
 	)
 }
 
-func homePageHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "<title>Inspirationifier</title>")
-	fmt.Fprintf(w, "<h1>Inspirationifier</h1>")
-	fmt.Fprintf(w, "<h2>Welcome to the Inspirationfier app!</h2>")
-	fmt.Fprintf(w, "<p>Please send a POST request with an image URL and the desired text.</p>")
+func IndexHandler(entrypoint string) func(w http.ResponseWriter, r *http.Request) {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, entrypoint)
+	}
+	return http.HandlerFunc(fn)
 }
 
 func userLogin(w http.ResponseWriter, r *http.Request) {
@@ -105,29 +108,11 @@ func createInspImage(w http.ResponseWriter, r *http.Request) {
 		//place text over img
 		textOverImg(data, premium)
 		fmt.Println("Inspirational image created.")
+		fmt.Fprintf(w, "http://localhost:3000/image/inspirational_image_"+strconv.Itoa(i)+".png")
 	} else {
 		fmt.Println("Error: Incomplete request.")
 	}
-}
 
-func dispImage(w http.ResponseWriter, r *http.Request) {
-	//check if url exists
-	if url != "" {
-		//check if text exists
-		if text != "" {
-			fmt.Fprintf(w, "<title>Inspirationifier</title>")
-			fmt.Fprintf(w, "<h1>Inspirationifier</h1>")
-			fmt.Fprintf(w, "<img src='images/inspirational_image.png' style='width:480px;height:480px;'>")
-		} else {
-			fmt.Fprintf(w, "<title>Inspirationifier</title>")
-			fmt.Fprintf(w, "<h1>Inspirationifier</h1>")
-			fmt.Fprintf(w, "<p> Error: Incomplete request, no text found.")
-		}
-	} else {
-		fmt.Fprintf(w, "<title>Inspirationifier</title>")
-		fmt.Fprintf(w, "<h1>Inspirationifier</h1>")
-		fmt.Fprintf(w, "<p>Please POST an image URL and text</p>")
-	}
 }
 
 //Helper Functions
@@ -139,6 +124,8 @@ func checkError(err error) {
 }
 
 func textOverImg(imgData []byte, premium bool) {
+	//increment image count
+	i++
 	//decode from []byte to image.Image
 	img, _, err := image.Decode(bytes.NewReader(imgData))
 	checkError(err)
@@ -170,6 +157,5 @@ func textOverImg(imgData []byte, premium bool) {
 		//draw a watermark
 		dc.DrawStringAnchored("Inspirationifier: Free Version.", 325, y*2-48, 0.5, 0.5)
 	}
-	dc.SavePNG("images/inspirational_image.png")
-
+	dc.SavePNG("images/inspirational_image_" + strconv.Itoa(i) + ".png")
 }
