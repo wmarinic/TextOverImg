@@ -1,7 +1,7 @@
 <template>
   <div id="app" class="container">
     <div class="column left">
-        <h1>Create an inspirational image</h1>
+        <h1>Create an Inspirational Image</h1>
         <form v-on:submit.prevent="makeInspirationalImg">
           <div class="form-group">
             <input v-model="imageURL" type="text" id="url-input" placeholder="Enter an image URL" class="form-control">

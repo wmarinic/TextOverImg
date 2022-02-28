@@ -1,4 +1,4 @@
-module Inspirationifier
+module TextOverImg
 
 go 1.17
 
