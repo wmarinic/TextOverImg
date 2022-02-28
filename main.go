@@ -40,22 +40,20 @@ func main() {
 	r := mux.NewRouter()
 
 	// Route handling and endpoints
+	r.PathPrefix("/").Handler(http.FileServer(http.Dir("frontend/dist/")))
+	r.PathPrefix("/").HandlerFunc(IndexHandler("frontend/dist/index.html"))
+
 	r.HandleFunc("/image", createInspImage).Methods("POST")
 	fs := http.FileServer(http.Dir("./images/"))
 	r.PathPrefix("/image/").Handler(http.StripPrefix("/image/", fs))
+
 	r.HandleFunc("/user", userLogin).Methods("POST")
 	r.HandleFunc("/logout", userLogout).Methods("GET")
-	r.PathPrefix("/").Handler(http.FileServer(http.Dir("frontend/dist/")))
-	r.PathPrefix("/").HandlerFunc(IndexHandler("frontend/dist/index.html"))
+
 	fmt.Println("Server listening on port 3000")
 	log.Panic(
 		http.ListenAndServe(":3000", r),
 	)
-}
-
-func userLogout(w http.ResponseWriter, r *http.Request) {
-	premium = false
-	fmt.Println("User logged out.")
 }
 
 func IndexHandler(entrypoint string) func(w http.ResponseWriter, r *http.Request) {
@@ -63,29 +61,6 @@ func IndexHandler(entrypoint string) func(w http.ResponseWriter, r *http.Request
 		http.ServeFile(w, r, entrypoint)
 	}
 	return http.HandlerFunc(fn)
-}
-
-func userLogin(w http.ResponseWriter, r *http.Request) {
-	//decode response
-	decoder := json.NewDecoder(r.Body)
-
-	var user user_struct
-	err := decoder.Decode(&user)
-	checkError(err)
-
-	userName := user.Username
-	passWord := user.Password
-
-	//hard coding a log in for now @TODO: add db + secure pw storing
-	if userName == "test" && passWord == "test" {
-		//premium access granted
-		premium = true
-		//fmt.Println("Login successful!")
-		fmt.Fprintf(w, `{"status": "success", "user":"%s", "msg":"Login successful!"}`, userName)
-	} else {
-		//fmt.Println("Login failed, wrong username or password.")
-		fmt.Fprintf(w, `{"status": "fail", "msg":"Login failed, wrong username or password"}`)
-	}
 }
 
 func createInspImage(w http.ResponseWriter, r *http.Request) {
@@ -127,7 +102,34 @@ func createInspImage(w http.ResponseWriter, r *http.Request) {
 		//fmt.Println("Error: Incomplete request.")
 		fmt.Fprintf(w, `{"error":"Error: Incomplete request"}`)
 	}
+}
 
+func userLogin(w http.ResponseWriter, r *http.Request) {
+	//decode response
+	decoder := json.NewDecoder(r.Body)
+
+	var user user_struct
+	err := decoder.Decode(&user)
+	checkError(err)
+
+	userName := user.Username
+	passWord := user.Password
+
+	//hard coding a log in for now @TODO: add db + secure pw storing
+	if userName == "test" && passWord == "test" {
+		//premium access granted
+		premium = true
+		//fmt.Println("Login successful!")
+		fmt.Fprintf(w, `{"status": "success", "user":"%s", "msg":"Login successful!"}`, userName)
+	} else {
+		//fmt.Println("Login failed, wrong username or password.")
+		fmt.Fprintf(w, `{"status": "fail", "msg":"Login failed, wrong username or password"}`)
+	}
+}
+
+func userLogout(w http.ResponseWriter, r *http.Request) {
+	premium = false
+	fmt.Println("User logged out.")
 }
 
 //Helper Functions
