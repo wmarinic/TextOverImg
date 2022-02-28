@@ -1,7 +1,8 @@
 # TextOverImg
 Naive implementation of an app that users can submit text and an image URL to.
-The app returns the image with the text placed over it.
+The app returns the image with the text placed over it. Users can login to remove the image watermark.
 
+The login is hard coded to user: test, password: test for now.
 
 Example queries to check endpoints:
 
@@ -9,5 +10,8 @@ curl -X POST -d "{\"url\": \"https://upload.wikimedia.org/wikipedia/commons/3/3d
 
 curl -X POST -d "{\"username\": \"test\", \"password\": \"test\"}" http://localhost:3000/user
 
-TODO:	
-- User db
+TODO / improvements:
+- implement a postgres db for users
+    -hashed passwords using bcrypt
+- better looking frontend
+- store and serve images from a AWS S3 bucket / azure blob ?
