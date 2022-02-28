@@ -12,21 +12,30 @@
             <button class="btn btn-primary">Create Inspirational Image!</button>
           </div>
         </form>
-        <img :src="image"/> 
+        <p id="img_err"></p>
+        <img :src="img"/> 
+        
+        
     </div>  
     <div class="column right">
-      <h3>Login to Your Account</h3>
-      <form v-on:submit.prevent="userLogin">
-        <div class="form-group">
-          <input v-model="user" type="text" id="username-input" placeholder="Enter username" class="form-control">
-          <br>
-          <input v-model="pass" type="text" id="password-input" placeholder="Enter password" class="form-control">
-        </div>
-        <div class="form-group">
-          <button class="btn btn-primary">Login</button>
-        </div>
-      </form>
-
+      <div id="login">
+        <h3>Login to Your Account</h3>
+        <form v-on:submit.prevent="userLogin">
+          <div class="form-group">
+            <input v-model="user" type="text" id="username-input" placeholder="Enter username" class="form-control">
+            <br>
+            <input v-model="pass" type="text" id="password-input" placeholder="Enter password" class="form-control">
+          </div>
+          <div class="form-group">
+            <button class="btn btn-primary">Login</button>
+          </div>
+        </form>
+        <p id="login_msg"></p>
+      </div>
+      <div id="logged_in" style="display:none">
+        <p id="display_username"></p>
+        <button v-on:click="userLogout">Logout</button>
+      </div>
     </div>
   </div>
 </template>
@@ -40,38 +49,65 @@ export default {
   data() { return {
     imageURL: '',
     text: '',
-    image: '',
+    img: '',
     user: '',
     pass: '',
   } },
 
   methods: {
     makeInspirationalImg() {
-      //reset the image
-      this.image = '';
+      //reset the image and img_error
+      this.img = '';
+      document.getElementById("img_err").innerHTML = "";
       //post to the go api
       axios.post("http://localhost:3000/image", {
         url: this.imageURL,
         text: this.text,
       })
       .then((response) => {
-         this.image = response.data;
+        //check for error
+        if(response.data.error == "none"){
+          this.img = response.data.image;
+        } else{
+          document.getElementById("img_err").innerHTML = response.data.error;
+        }
       })
       .catch((error) => {
         window.alert(`API error: ${error}`);
       })
     },
     userLogin(){
+      //reset err messages
+      document.getElementById("login_msg").innerHTML = "";
       //post to the go api
       axios.post("http://localhost:3000/user", {
         username: this.user,
         password: this.pass,
-      }) //TODO add response from login
+      })
+      .then((response) =>{
+        if(response.data.status == "success"){
+          //hide the login form and display a logout button
+          document.getElementById("login").style.display = "none";
+          document.getElementById("display_username").innerHTML = "Logged in as: " + response.data.user;
+          document.getElementById("logged_in").style.display = "initial";
+        }else{
+          document.getElementById("login_msg").innerHTML = response.data.msg;
+        }
+      })
       .catch((error) => {
         window.alert(`Login API error: ${error}`);
       })
+    },
+    userLogout(){
+      axios.get("http://localhost:3000/logout").then(() =>{
+          document.getElementById("login").style.display = "initial";
+          document.getElementById("logged_in").style.display = "none";
+      })
+      .catch((error) =>{
+        window.alert(`Logout API error: ${error}`);
+      })
     }
-  }  
+  },
 }
 </script>
 

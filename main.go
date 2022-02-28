@@ -44,12 +44,18 @@ func main() {
 	fs := http.FileServer(http.Dir("./images/"))
 	r.PathPrefix("/image/").Handler(http.StripPrefix("/image/", fs))
 	r.HandleFunc("/user", userLogin).Methods("POST")
+	r.HandleFunc("/logout", userLogout).Methods("GET")
 	r.PathPrefix("/").Handler(http.FileServer(http.Dir("frontend/dist/")))
 	r.PathPrefix("/").HandlerFunc(IndexHandler("frontend/dist/index.html"))
 	fmt.Println("Server listening on port 3000")
 	log.Panic(
 		http.ListenAndServe(":3000", r),
 	)
+}
+
+func userLogout(w http.ResponseWriter, r *http.Request) {
+	premium = false
+	fmt.Println("User logged out.")
 }
 
 func IndexHandler(entrypoint string) func(w http.ResponseWriter, r *http.Request) {
@@ -74,9 +80,11 @@ func userLogin(w http.ResponseWriter, r *http.Request) {
 	if userName == "test" && passWord == "test" {
 		//premium access granted
 		premium = true
-		fmt.Println("Login successful!")
+		//fmt.Println("Login successful!")
+		fmt.Fprintf(w, `{"status": "success", "user":"%s", "msg":"Login successful!"}`, userName)
 	} else {
-		fmt.Println("Login failed, wrong username or password.")
+		//fmt.Println("Login failed, wrong username or password.")
+		fmt.Fprintf(w, `{"status": "fail", "msg":"Login failed, wrong username or password"}`)
 	}
 }
 
@@ -97,20 +105,27 @@ func createInspImage(w http.ResponseWriter, r *http.Request) {
 
 		//get http response from url
 		res, err := http.Get(url)
-		checkError(err)
+		if err != nil {
+			//fmt.Println("Invalid URL.")
+			fmt.Fprintf(w, `{"error":"Error: Invalid URL"}`)
+		} else {
+			//grab the image from the response body
+			data, err := ioutil.ReadAll(res.Body)
+			checkError(err)
 
-		//grab the image from the response body
-		data, err := ioutil.ReadAll(res.Body)
-		checkError(err)
+			res.Body.Close()
 
-		res.Body.Close()
-
-		//place text over img
-		textOverImg(data, premium)
-		fmt.Println("Inspirational image created.")
-		fmt.Fprintf(w, "http://localhost:3000/image/inspirational_image_"+strconv.Itoa(i)+".png")
+			//place text over img
+			if textOverImg(data, premium) {
+				fmt.Fprintf(w, `{"image": "http://localhost:3000/image/inspirational_image_%s.png", "error":"none"}`, strconv.Itoa(i))
+			} else {
+				//no image from the given url
+				fmt.Fprintf(w, `{"error":"Error: Could not get image from URL"}`)
+			}
+		}
 	} else {
-		fmt.Println("Error: Incomplete request.")
+		//fmt.Println("Error: Incomplete request.")
+		fmt.Fprintf(w, `{"error":"Error: Incomplete request"}`)
 	}
 
 }
@@ -123,39 +138,45 @@ func checkError(err error) {
 	}
 }
 
-func textOverImg(imgData []byte, premium bool) {
+func textOverImg(imgData []byte, premium bool) bool {
 	//increment image count
 	i++
 	//decode from []byte to image.Image
 	img, _, err := image.Decode(bytes.NewReader(imgData))
-	checkError(err)
+	//if the url is not an image
+	if err != nil {
+		//fmt.Println("Could not get image from URL.")
+		return false
+	} else {
+		//get image size
+		imgWidth := img.Bounds().Dx()
+		imgHeight := img.Bounds().Dy()
 
-	//get image size
-	imgWidth := img.Bounds().Dx()
-	imgHeight := img.Bounds().Dy()
+		//load in a default font
+		font, err := truetype.Parse(goregular.TTF)
+		checkError(err)
 
-	//load in a default font
-	font, err := truetype.Parse(goregular.TTF)
-	checkError(err)
+		face := truetype.NewFace(font, &truetype.Options{Size: 48})
 
-	face := truetype.NewFace(font, &truetype.Options{Size: 48})
+		//create canvas for image & drawing text
+		dc := gg.NewContext(imgWidth, imgHeight)
+		dc.DrawImage(img, 0, 0)
+		dc.SetFontFace(face)
+		dc.SetColor(color.White)
 
-	//create canvas for image & drawing text
-	dc := gg.NewContext(imgWidth, imgHeight)
-	dc.DrawImage(img, 0, 0)
-	dc.SetFontFace(face)
-	dc.SetColor(color.White)
+		//set x/y position of text
+		x := float64(imgWidth / 2)
+		y := float64(imgHeight / 2)
+		maxWidth := float64(imgWidth - 60) //maximum width text can occupy
 
-	//set x/y position of text
-	x := float64(imgWidth / 2)
-	y := float64(imgHeight / 2)
-	maxWidth := float64(imgWidth - 60) //maximum width text can occupy
-
-	dc.DrawStringWrapped(text, x, y, 0.5, 0.5, maxWidth, 1.5, gg.AlignCenter)
-	//check users access
-	if !premium {
-		//draw a watermark
-		dc.DrawStringAnchored("Inspirationifier: Free Version.", 325, y*2-48, 0.5, 0.5)
+		dc.DrawStringWrapped(text, x, y, 0.5, 0.5, maxWidth, 1.5, gg.AlignCenter)
+		//check users access
+		if !premium {
+			//draw a watermark
+			dc.DrawStringAnchored("Inspirationifier: Free Version.", 325, y*2-48, 0.5, 0.5)
+		}
+		dc.SavePNG("images/inspirational_image_" + strconv.Itoa(i) + ".png")
+		fmt.Println("Inspirational image created.")
+		return true
 	}
-	dc.SavePNG("images/inspirational_image_" + strconv.Itoa(i) + ".png")
 }
