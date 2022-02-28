@@ -6,7 +6,7 @@ The login is hard coded to user: test, password: test for now.
 
 Example queries to check endpoints:
 
-curl -X POST -d "{\"url\": \"https://upload.wikimedia.org/wikipedia/commons/3/3d/Forstarbeiten_in_%C3%96sterreich.JPG\", \"text\": \"Inpsiration Quote Here!\"}" http://localhost:3000/image
+curl -X POST -d "{\"url\": \"image-url-here.jpg\", \"text\": \"Inpsiration Quote Here!\"}" http://localhost:3000/image
 
 curl -X POST -d "{\"username\": \"test\", \"password\": \"test\"}" http://localhost:3000/user
 
