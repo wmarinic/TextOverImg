@@ -10,5 +10,8 @@ curl -X POST -d "{\"url\": \"https://upload.wikimedia.org/wikipedia/commons/3/3d
 curl -X POST -d "{\"username\": \"test\", \"password\": \"test\"}" http://localhost:3000/user
 
 TODO:	
-- User db and login/logout functions
+- User db and logout functions
 - Frontend in Vue.js
+- Improve responses from API
+    -> display errors to the user on the frontend, not just in the console as its currently doing
+        -> e.g. "No image found on that url", "Incorrect login", etc...

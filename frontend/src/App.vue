@@ -1,9 +1,7 @@
 <template>
   <div id="app" class="container">
-    <div class="row">
-      <div class="col-md-6 offset-md-3 py-5">
+    <div class="column left">
         <h1>Create an inspirational image</h1>
-
         <form v-on:submit.prevent="makeInspirationalImg">
           <div class="form-group">
             <input v-model="imageURL" type="text" id="url-input" placeholder="Enter an image URL" class="form-control">
@@ -14,9 +12,21 @@
             <button class="btn btn-primary">Create Inspirational Image!</button>
           </div>
         </form>
+        <img :src="image"/> 
+    </div>  
+    <div class="column right">
+      <h3>Login to Your Account</h3>
+      <form v-on:submit.prevent="userLogin">
+        <div class="form-group">
+          <input v-model="user" type="text" id="username-input" placeholder="Enter username" class="form-control">
+          <br>
+          <input v-model="pass" type="text" id="password-input" placeholder="Enter password" class="form-control">
+        </div>
+        <div class="form-group">
+          <button class="btn btn-primary">Login</button>
+        </div>
+      </form>
 
-        <img :src="image"/>
-      </div>
     </div>
   </div>
 </template>
@@ -31,6 +41,8 @@ export default {
     imageURL: '',
     text: '',
     image: '',
+    user: '',
+    pass: '',
   } },
 
   methods: {
@@ -48,6 +60,16 @@ export default {
       .catch((error) => {
         window.alert(`API error: ${error}`);
       })
+    },
+    userLogin(){
+      //post to the go api
+      axios.post("http://localhost:3000/user", {
+        username: this.user,
+        password: this.pass,
+      }) //TODO add response from login
+      .catch((error) => {
+        window.alert(`Login API error: ${error}`);
+      })
     }
   }  
 }
@@ -62,4 +84,22 @@ export default {
   color: #2c3e50;
   margin-top: 60px;
 }
+
+.column {
+  float:left;
+}
+.left {
+  width: 80%;
+}
+
+.right {
+  width: 20%;
+}
+
+@media screen and (max-width: 600px){
+  .column{
+    width:100%;
+  }
+};
+
 </style>
