@@ -18,14 +18,10 @@ import (
 	"github.com/gorilla/mux"
 )
 
-//define global vars
-var url string = ""
-var text string = ""
-var premium bool = false
-
 type request_struct struct {
 	Url  string `json:"url"`
 	Text string `json:"text"`
+	Auth bool   `json:"auth"`
 }
 
 type user_struct struct {
@@ -44,18 +40,12 @@ func main() {
 	fs := http.FileServer(http.Dir("./images/"))
 	r.PathPrefix("/image/").Handler(http.StripPrefix("/image/", fs))
 	r.HandleFunc("/user", userLogin).Methods("POST")
-	r.HandleFunc("/logout", userLogout).Methods("GET")
 	r.PathPrefix("/").Handler(http.FileServer(http.Dir("frontend/dist/")))
 	r.PathPrefix("/").HandlerFunc(IndexHandler("frontend/dist/index.html"))
 	fmt.Println("Server listening on port 3000")
 	log.Panic(
 		http.ListenAndServe(":3000", r),
 	)
-}
-
-func userLogout(w http.ResponseWriter, r *http.Request) {
-	premium = false
-	fmt.Println("User logged out.")
 }
 
 func IndexHandler(entrypoint string) func(w http.ResponseWriter, r *http.Request) {
@@ -78,8 +68,6 @@ func userLogin(w http.ResponseWriter, r *http.Request) {
 
 	//hard coding a log in for now @TODO: add db + secure pw storing
 	if userName == "test" && passWord == "test" {
-		//premium access granted
-		premium = true
 		//fmt.Println("Login successful!")
 		fmt.Fprintf(w, `{"status": "success", "user":"%s", "msg":"Login successful!"}`, userName)
 	} else {
@@ -96,8 +84,12 @@ func createInspImage(w http.ResponseWriter, r *http.Request) {
 	err := decoder.Decode(&req)
 	checkError(err)
 
-	url = req.Url
-	text = req.Text
+	url := req.Url
+	text := req.Text
+	auth := req.Auth
+
+	fmt.Print("premium access: ")
+	fmt.Println(auth)
 
 	//check the request
 	if url != "" && text != "" {
@@ -116,7 +108,7 @@ func createInspImage(w http.ResponseWriter, r *http.Request) {
 			res.Body.Close()
 
 			//place text over img
-			if textOverImg(data, premium) {
+			if textOverImg(data, text, auth) {
 				fmt.Fprintf(w, `{"image": "http://localhost:3000/image/inspirational_image_%s.png", "error":"none"}`, strconv.Itoa(i))
 			} else {
 				//no image from the given url
@@ -138,7 +130,7 @@ func checkError(err error) {
 	}
 }
 
-func textOverImg(imgData []byte, premium bool) bool {
+func textOverImg(imgData []byte, text string, premium bool) bool {
 	//increment image count
 	i++
 	//decode from []byte to image.Image
