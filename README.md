@@ -1,8 +1,7 @@
 # TextOverImg
-Naive implementation of an app that users can submit text and an image URL to.
-The app returns the image with the text placed over it. Users can login to remove the image watermark.
-
-The login is hard coded to username: test, password: test for now.
+TextOverImg is an app that users can submit text and an image URL to.
+The app returns the image with the text placed over it. 
+Users can create an account and login to remove the image watermark.
 
 ## Getting Started
 ### Dependencies, Docker and Postgres (for windows users)
@@ -54,6 +53,13 @@ curl -X POST -d "{\"username\": \"test\", \"password\": \"test\"}" http://localh
 curl -X POST -d "{\"username\": \"test1\", \"password\": \"test\"}" http://localhost:3000/register
 ```
 
-### TODO / improvements:
+### Further Improvements:
 - better looking frontend
+	- more intuitive page setup 
+		- login/register/continue as guest 
+		- create image
+- nicer font/text over image
 - store and serve images from a AWS S3 bucket / azure blob ?
+	- additional feature for users to view all their of previously created images
+
+
