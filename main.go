@@ -253,25 +253,38 @@ func createUserInDb(db *sql.DB) {
 }
 
 func registerUserInDb(db *sql.DB, username, password string) string {
-	ctx := context.Background()
+	//check user and pw
+	if username != "" && password != "" {
+		ctx := context.Background()
 
-	querier := store.New(db)
+		querier := store.New(db)
 
-	log.Println("Creating new user...")
-	hashPwd := internal.HashPassword(password)
+		log.Println("Creating new user...")
+		hashPwd := internal.HashPassword(password)
 
-	_, err := querier.CreateUser(ctx, store.CreateUserParams{
-		UserName:     username,
-		PasswordHash: hashPwd,
-	})
+		_, err := querier.CreateUser(ctx, store.CreateUserParams{
+			UserName:     username,
+			PasswordHash: hashPwd,
+		})
 
-	if err, ok := err.(*pq.Error); ok && err.Code.Name() == "unique_violation" {
-		log.Println("User already exists")
-		return `{"msg": "Error: User already exists"}`
+		if err, ok := err.(*pq.Error); ok && err.Code.Name() == "unique_violation" {
+			log.Println("User already exists")
+			return `{"msg": "Error: User already exists"}`
+		}
+		if err != nil {
+			log.Println("Failed to create user: ", err)
+			return `{"msg": "Error: Failed to create user"}`
+		}
+		return `{"msg": "Account created! Proceed to the home page and login."}`
+	} else {
+		if username == "" && password == "" {
+			return `{"msg": "Error: Please enter a username and password"}`
+		} else if username == "" {
+			return `{"msg": "Error: Please enter a username"}`
+		} else {
+			return `{"msg": "Error: Please enter a password"}`
+		}
+
 	}
-	if err != nil {
-		log.Println("Failed to create user: ", err)
-		return `{"msg": "Error: Failed to create user"}`
-	}
-	return `{"msg": "Account created! Proceed to the home page and login."}`
+
 }
