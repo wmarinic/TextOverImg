@@ -44,9 +44,10 @@ migrate create -ext sql -dir ./migrations -seq create_users_table
 curl -X POST -d "{\"url\": \"image-url-here.jpg\", \"text\": \"Inpsiration Quote Here!\"}" http://localhost:3000/image
 
 curl -X POST -d "{\"username\": \"test\", \"password\": \"test\"}" http://localhost:3000/login
+
+curl -X POST -d "{\"username\": \"test1\", \"password\": \"test\"}" http://localhost:3000/register
 ```
 
 ### TODO / improvements:
-- user register function
 - better looking frontend
 - store and serve images from a AWS S3 bucket / azure blob ?
