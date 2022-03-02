@@ -14,8 +14,6 @@
         </form>
         <p id="img_err"></p>
         <img :src="img"/> 
-        
-        
     </div>  
     <div class="column right">
       <div id="login">
@@ -90,7 +88,7 @@ export default {
       //reset err messages
       document.getElementById("login_msg").innerHTML = "";
       //post to the go api
-      axios.post("http://localhost:3000/user", {
+      axios.post("http://localhost:3000/login", {
         username: this.user,
         password: this.pass,
       })

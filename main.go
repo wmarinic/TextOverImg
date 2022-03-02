@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"TextOverImg/internal"
 	"TextOverImg/store"
 
 	"github.com/fogleman/gg"
@@ -66,7 +67,7 @@ func main() {
 	r.HandleFunc("/image", createInspImage).Methods("POST")
 	fs := http.FileServer(http.Dir("./images/"))
 	r.PathPrefix("/image/").Handler(http.StripPrefix("/image/", fs))
-	r.Handle("/user", userLogin(db)).Methods("POST")
+	r.Handle("/login", userLogin(db)).Methods("POST")
 	r.PathPrefix("/").Handler(http.FileServer(http.Dir("frontend/dist/")))
 	r.PathPrefix("/").HandlerFunc(IndexHandler("frontend/dist/index.html"))
 	fmt.Println("Server listening on port 3000")
@@ -98,7 +99,7 @@ func userLogin(db *sql.DB) http.HandlerFunc {
 		querier := store.New(db)
 
 		user, err := querier.GetUser(r.Context(), userName)
-		if errors.Is(err, sql.ErrNoRows) || (passWord != user.PasswordHash) {
+		if errors.Is(err, sql.ErrNoRows) || !internal.CheckPasswordHash(passWord, user.PasswordHash) {
 			fmt.Fprintf(w, `{"status": "fail", "msg":"Login failed, wrong username or password"}`)
 			return
 		}
@@ -216,7 +217,7 @@ func createUserInDb(db *sql.DB) {
 	querier := store.New(db)
 
 	log.Println("Creating test user...")
-	hashPwd := "test"
+	hashPwd := internal.HashPassword("test")
 
 	_, err := querier.CreateUser(ctx, store.CreateUserParams{
 		UserName:     "test",
@@ -227,7 +228,6 @@ func createUserInDb(db *sql.DB) {
 		log.Println("Test user already exists")
 		return
 	}
-
 	if err != nil {
 		log.Println("Failed to create user: ", err)
 	}
