@@ -6,9 +6,8 @@ The login is hard coded to username: test, password: test for now.
 
 ## Getting Started
 ### Dependencies, Docker and Postgres (for windows users)
-Install dependencies and golang-migrate.
+Install golang-migrate.
 ```
-go get ./...
 go get -u -tags 'postgres' github.com/golang-migrate/migrate/cli
 ```
 Running db (WSL) and migrations (cmd).
@@ -22,7 +21,7 @@ docker pull kjconroy/sqlc
 docker run --rm -v "$(pwd):/src" -w /src kjconroy/sqlc generate
 ```
 
-### Setting up the frontend
+### Setting Up the Vue.js Frontend
 ```
 cd frontend
 npm install
