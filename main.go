@@ -2,7 +2,10 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -11,11 +14,14 @@ import (
 	"net/http"
 	"strconv"
 
+	"TextOverImg/store"
+
 	"github.com/fogleman/gg"
 	"github.com/golang/freetype/truetype"
 	"golang.org/x/image/font/gofont/goregular"
 
 	"github.com/gorilla/mux"
+	"github.com/lib/pq"
 )
 
 type request_struct struct {
@@ -25,13 +31,34 @@ type request_struct struct {
 }
 
 type user_struct struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Username string `json:"username,omitempty"`
+	Password string `json:"password,omitempty"`
 }
 
 var i int = 0
 
 func main() {
+	//init db
+	dbURI := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable",
+		"local",
+		"pass",
+		"localhost",
+		5432,
+		"inspirationifierdb",
+	)
+	//Open db
+	db, err := sql.Open("postgres", dbURI)
+	if err != nil {
+		log.Fatalln("Error opening db: ", err)
+	}
+	//Check connection
+	if err := db.Ping(); err != nil {
+		log.Fatalln("Error from db ping: ", err)
+	}
+
+	//Create a test user
+	createUserInDb(db)
+
 	//Init router
 	r := mux.NewRouter()
 
@@ -39,7 +66,7 @@ func main() {
 	r.HandleFunc("/image", createInspImage).Methods("POST")
 	fs := http.FileServer(http.Dir("./images/"))
 	r.PathPrefix("/image/").Handler(http.StripPrefix("/image/", fs))
-	r.HandleFunc("/user", userLogin).Methods("POST")
+	r.Handle("/user", userLogin(db)).Methods("POST")
 	r.PathPrefix("/").Handler(http.FileServer(http.Dir("frontend/dist/")))
 	r.PathPrefix("/").HandlerFunc(IndexHandler("frontend/dist/index.html"))
 	fmt.Println("Server listening on port 3000")
@@ -55,25 +82,35 @@ func IndexHandler(entrypoint string) func(w http.ResponseWriter, r *http.Request
 	return http.HandlerFunc(fn)
 }
 
-func userLogin(w http.ResponseWriter, r *http.Request) {
-	//decode response
-	decoder := json.NewDecoder(r.Body)
+func userLogin(db *sql.DB) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-	var user user_struct
-	err := decoder.Decode(&user)
-	checkError(err)
+		//decode response
+		decoder := json.NewDecoder(r.Body)
 
-	userName := user.Username
-	passWord := user.Password
+		var login_req user_struct
+		err := decoder.Decode(&login_req)
+		checkError(err)
 
-	//hard coding a log in for now @TODO: add db + secure pw storing
-	if userName == "test" && passWord == "test" {
-		//fmt.Println("Login successful!")
+		userName := login_req.Username
+		passWord := login_req.Password
+
+		querier := store.New(db)
+
+		user, err := querier.GetUser(r.Context(), userName)
+		if errors.Is(err, sql.ErrNoRows) || (passWord != user.PasswordHash) {
+			fmt.Fprintf(w, `{"status": "fail", "msg":"Login failed, wrong username or password"}`)
+			return
+		}
+		if err != nil {
+			fmt.Println("Error looking up user", err)
+			return
+		}
+
+		//valid user
+		log.Println("Login successful!")
 		fmt.Fprintf(w, `{"status": "success", "user":"%s", "msg":"Login successful!"}`, userName)
-	} else {
-		//fmt.Println("Login failed, wrong username or password.")
-		fmt.Fprintf(w, `{"status": "fail", "msg":"Login failed, wrong username or password"}`)
-	}
+	})
 }
 
 func createInspImage(w http.ResponseWriter, r *http.Request) {
@@ -88,12 +125,12 @@ func createInspImage(w http.ResponseWriter, r *http.Request) {
 	text := req.Text
 	auth := req.Auth
 
-	fmt.Print("premium access: ")
-	fmt.Println(auth)
+	//log.Print("premium access: ")
+	//log.Println(auth)
 
 	//check the request
 	if url != "" && text != "" {
-		fmt.Println("URL and text received.")
+		log.Println("URL and text received.")
 
 		//get http response from url
 		res, err := http.Get(url)
@@ -168,7 +205,30 @@ func textOverImg(imgData []byte, text string, premium bool) bool {
 			dc.DrawStringAnchored("Inspirationifier: Free Version.", 325, y*2-48, 0.5, 0.5)
 		}
 		dc.SavePNG("images/inspirational_image_" + strconv.Itoa(i) + ".png")
-		fmt.Println("Inspirational image created.")
+		log.Println("Inspirational image created.")
 		return true
+	}
+}
+
+func createUserInDb(db *sql.DB) {
+	ctx := context.Background()
+
+	querier := store.New(db)
+
+	log.Println("Creating test user...")
+	hashPwd := "test"
+
+	_, err := querier.CreateUser(ctx, store.CreateUserParams{
+		UserName:     "test",
+		PasswordHash: hashPwd,
+	})
+
+	if err, ok := err.(*pq.Error); ok && err.Code.Name() == "unique_violation" {
+		log.Println("Test user already exists")
+		return
+	}
+
+	if err != nil {
+		log.Println("Failed to create user: ", err)
 	}
 }

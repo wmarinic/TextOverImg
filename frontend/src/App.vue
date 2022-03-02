@@ -53,13 +53,21 @@ export default {
     user: '',
     pass: '',
     premium: false,
+    wait: false
   } },
 
   methods: {
     makeInspirationalImg() {
+      //prevent users from quickly sending multiple requests
+      if (this.wait){
+        return;
+      }
+      this.wait = true;
+      setTimeout(() => this.wait = false, 1000)
       //reset the image and img_error
       this.img = '';
       document.getElementById("img_err").innerHTML = "";
+
       //post to the go api
       axios.post("http://localhost:3000/image", {
         url: this.imageURL,
