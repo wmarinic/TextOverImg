@@ -17,17 +17,19 @@
     </div>  
     <div class="column right">
       <div id="login">
-        <h3>Login to Your Account</h3>
+        <h3>Login</h3>
         <form v-on:submit.prevent="userLogin">
           <div class="form-group">
-            <input v-model="user" type="text" id="username-input" placeholder="Enter username" class="form-control">
+            <input v-model="user" type="text" id="username-input" placeholder="Username" class="form-control">
             <br>
-            <input v-model="pass" type="text" id="password-input" placeholder="Enter password" class="form-control">
+            <input v-model="pass" type="text" id="password-input" placeholder="Password" class="form-control">
           </div>
           <div class="form-group">
             <button class="btn btn-primary">Login</button>
           </div>
         </form>
+        <br>
+        <a href="register.html">Click here to create an account</a>
         <p id="login_msg"></p>
       </div>
       <div id="logged_in" style="display:none">

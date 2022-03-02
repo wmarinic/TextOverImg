@@ -68,6 +68,7 @@ func main() {
 	fs := http.FileServer(http.Dir("./images/"))
 	r.PathPrefix("/image/").Handler(http.StripPrefix("/image/", fs))
 	r.Handle("/login", userLogin(db)).Methods("POST")
+	r.Handle("/register", userRegister(db)).Methods("POST")
 	r.PathPrefix("/").Handler(http.FileServer(http.Dir("frontend/dist/")))
 	r.PathPrefix("/").HandlerFunc(IndexHandler("frontend/dist/index.html"))
 	fmt.Println("Server listening on port 3000")
@@ -81,6 +82,24 @@ func IndexHandler(entrypoint string) func(w http.ResponseWriter, r *http.Request
 		http.ServeFile(w, r, entrypoint)
 	}
 	return http.HandlerFunc(fn)
+}
+
+func userRegister(db *sql.DB) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		//decode response
+		decoder := json.NewDecoder(r.Body)
+
+		var register_req user_struct
+		err := decoder.Decode(&register_req)
+		checkError(err)
+
+		userName := register_req.Username
+		passWord := register_req.Password
+
+		msg := registerUserInDb(db, userName, passWord)
+		fmt.Fprint(w, msg)
+	})
 }
 
 func userLogin(db *sql.DB) http.HandlerFunc {
@@ -231,4 +250,28 @@ func createUserInDb(db *sql.DB) {
 	if err != nil {
 		log.Println("Failed to create user: ", err)
 	}
+}
+
+func registerUserInDb(db *sql.DB, username, password string) string {
+	ctx := context.Background()
+
+	querier := store.New(db)
+
+	log.Println("Creating new user...")
+	hashPwd := internal.HashPassword(password)
+
+	_, err := querier.CreateUser(ctx, store.CreateUserParams{
+		UserName:     username,
+		PasswordHash: hashPwd,
+	})
+
+	if err, ok := err.(*pq.Error); ok && err.Code.Name() == "unique_violation" {
+		log.Println("User already exists")
+		return `{"msg": "Error: User already exists"}`
+	}
+	if err != nil {
+		log.Println("Failed to create user: ", err)
+		return `{"msg": "Error: Failed to create user"}`
+	}
+	return `{"msg": "Account created! Proceed to the home page and login."}`
 }
