@@ -19,7 +19,14 @@ migrate -path ./migrations -database "postgres://local:pass@localhost:5432/inspi
 In WSL, pull the latest version of sqlc and re-generate  sqlc bindings
 ```
 docker pull kjconroy/sqlc
-docker run --rm -v $(pwd):/src -w /src
+docker run --rm -v "$(pwd):/src" -w /src kjconroy/sqlc generate
+```
+
+### Setting up the frontend
+```
+cd frontend
+npm install
+npm run build
 ```
 
 ### Build and Run
