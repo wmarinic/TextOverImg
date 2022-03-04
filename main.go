@@ -1,6 +1,8 @@
 package main
 
 import (
+	"TextOverImg/internal"
+	"TextOverImg/store"
 	"bytes"
 	"context"
 	"database/sql"
@@ -12,31 +14,28 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"strconv"
-
-	"TextOverImg/internal"
-	"TextOverImg/store"
+	"os"
 
 	"github.com/fogleman/gg"
 	"github.com/golang/freetype/truetype"
+	"github.com/lib/pq"
 	"golang.org/x/image/font/gofont/goregular"
 
 	"github.com/gorilla/mux"
-	"github.com/lib/pq"
+
+	"github.com/gofrs/uuid"
 )
 
-type request_struct struct {
+type request struct {
 	Url  string `json:"url"`
 	Text string `json:"text"`
 	Auth bool   `json:"auth"`
 }
 
-type user_struct struct {
+type user struct {
 	Username string `json:"username,omitempty"`
 	Password string `json:"password,omitempty"`
 }
-
-var i int = 0
 
 func main() {
 	//init db
@@ -63,171 +62,230 @@ func main() {
 	//Init router
 	r := mux.NewRouter()
 
-	// Route handling and endpoints
-	r.HandleFunc("/image", createInspImage).Methods("POST")
+	//Route handling and endpoints
+	r.HandleFunc("/image", createImage).Methods(http.MethodPost)
+	r.Handle("/login", login(db)).Methods(http.MethodPost)
+	r.Handle("/register", register(db)).Methods(http.MethodPost)
+
+	//Image file handler
 	fs := http.FileServer(http.Dir("./images/"))
 	r.PathPrefix("/image/").Handler(http.StripPrefix("/image/", fs))
-	r.Handle("/login", userLogin(db)).Methods("POST")
-	r.Handle("/register", userRegister(db)).Methods("POST")
+
+	//Static file handler (frontend)
 	r.PathPrefix("/").Handler(http.FileServer(http.Dir("frontend/dist/")))
-	r.PathPrefix("/").HandlerFunc(IndexHandler("frontend/dist/index.html"))
+	r.PathPrefix("/").HandlerFunc(index("frontend/dist/index.html"))
+
+	//Server
 	fmt.Println("Server listening on port 3000")
-	log.Panic(
-		http.ListenAndServe(":3000", r),
-	)
+
+	err = http.ListenAndServe(":3000", r)
+	if err != nil && err != http.ErrServerClosed {
+		log.Println(err)
+		os.Exit(1)
+	}
 }
 
-func IndexHandler(entrypoint string) func(w http.ResponseWriter, r *http.Request) {
-	fn := func(w http.ResponseWriter, r *http.Request) {
+func index(entrypoint string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, entrypoint)
 	}
-	return http.HandlerFunc(fn)
 }
 
-func userRegister(db *sql.DB) http.HandlerFunc {
+type registerResp struct {
+	Msg string
+}
+
+func register(db *sql.DB) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		//decode response
 		decoder := json.NewDecoder(r.Body)
 
-		var register_req user_struct
-		err := decoder.Decode(&register_req)
-		checkError(err)
+		var req user
+		err := decoder.Decode(&req)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 
-		userName := register_req.Username
-		passWord := register_req.Password
-
-		msg := registerUserInDb(db, userName, passWord)
-		fmt.Fprint(w, msg)
+		resp := &registerResp{
+			Msg: registerUserInDb(db, req.Username, req.Password),
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
 	})
 }
 
-func userLogin(db *sql.DB) http.HandlerFunc {
+type loginResp struct {
+	Status string
+	Msg    string
+	User   string
+}
+
+func login(db *sql.DB) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		//decode response
 		decoder := json.NewDecoder(r.Body)
 
-		var login_req user_struct
-		err := decoder.Decode(&login_req)
-		checkError(err)
-
-		userName := login_req.Username
-		passWord := login_req.Password
+		var req user
+		err := decoder.Decode(&req)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 
 		querier := store.New(db)
-
-		user, err := querier.GetUser(r.Context(), userName)
-		if errors.Is(err, sql.ErrNoRows) || !internal.CheckPasswordHash(passWord, user.PasswordHash) {
-			fmt.Fprintf(w, `{"status": "fail", "msg":"Login failed, wrong username or password"}`)
+		user, err := querier.GetUser(r.Context(), req.Username)
+		if errors.Is(err, sql.ErrNoRows) || !internal.CheckPasswordHash(req.Password, user.PasswordHash) {
+			resp := &loginResp{
+				Status: "fail",
+				Msg:    "Login failed, wrong username or password",
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(resp)
 			return
 		}
 		if err != nil {
-			fmt.Println("Error looking up user", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			log.Println("Error looking up user", err)
 			return
 		}
 
 		//valid user
-		log.Println("Login successful!")
-		fmt.Fprintf(w, `{"status": "success", "user":"%s", "msg":"Login successful!"}`, userName)
+		resp := &loginResp{
+			Status: "success",
+			Msg:    "Login successful!",
+			User:   req.Username,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
 	})
 }
 
-func createInspImage(w http.ResponseWriter, r *http.Request) {
+type imageResp struct {
+	Image string
+	Error string
+}
+
+func createImage(w http.ResponseWriter, r *http.Request) {
 	//decode response
 	decoder := json.NewDecoder(r.Body)
 
-	var req request_struct
+	var req request
 	err := decoder.Decode(&req)
-	checkError(err)
-
-	url := req.Url
-	text := req.Text
-	auth := req.Auth
-
-	//log.Print("premium access: ")
-	//log.Println(auth)
-
-	//check the request
-	if url != "" && text != "" {
-		log.Println("URL and text received.")
-
-		//get http response from url
-		res, err := http.Get(url)
-		if err != nil {
-			//fmt.Println("Invalid URL.")
-			fmt.Fprintf(w, `{"error":"Error: Invalid URL"}`)
-		} else {
-			//grab the image from the response body
-			data, err := ioutil.ReadAll(res.Body)
-			checkError(err)
-
-			res.Body.Close()
-
-			//place text over img
-			if textOverImg(data, text, auth) {
-				fmt.Fprintf(w, `{"image": "http://localhost:3000/image/inspirational_image_%s.png", "error":"none"}`, strconv.Itoa(i))
-			} else {
-				//no image from the given url
-				fmt.Fprintf(w, `{"error":"Error: Could not get image from URL"}`)
-			}
-		}
-	} else {
-		//fmt.Println("Error: Incomplete request.")
-		fmt.Fprintf(w, `{"error":"Error: Incomplete request"}`)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
 	}
 
+	//check the request
+	if req.Url == "" || req.Text == "" {
+		resp := &imageResp{
+			Error: "Error - Incomplete Request",
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+		return
+	}
+
+	log.Printf("URL and text received, URL=%v, Text=%v", req.Url, req.Text)
+
+	//get http response from url
+	res, err := http.Get(req.Url)
+	if err != nil {
+		resp := &imageResp{
+			Error: "Error - Invalid URL",
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+		return
+	}
+
+	//grab the image from the response body
+	data, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		res.Body.Close()
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	res.Body.Close()
+
+	//generate UUID
+	uuid, err := uuid.NewV4()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	//place text over img
+	err = textOverImg(data, req.Text, req.Auth, uuid.String())
+	if err != nil {
+		resp := &imageResp{
+			Error: "Error - Could not get image from URL",
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+		return
+	}
+
+	//send the image to the user
+	resp := &imageResp{
+		Image: "http://localhost:3000/image/inspirational_image_" + uuid.String() + ".png",
+		Error: "none",
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
 }
 
 //Helper Functions
 
-func checkError(err error) {
-	if err != nil {
-		log.Panic(err)
-	}
-}
-
-func textOverImg(imgData []byte, text string, premium bool) bool {
-	//increment image count
-	i++
+func textOverImg(imgData []byte, text string, premium bool, uuid string) error {
 	//decode from []byte to image.Image
 	img, _, err := image.Decode(bytes.NewReader(imgData))
 	//if the url is not an image
 	if err != nil {
 		//fmt.Println("Could not get image from URL.")
-		return false
-	} else {
-		//get image size
-		imgWidth := img.Bounds().Dx()
-		imgHeight := img.Bounds().Dy()
-
-		//load in a default font
-		font, err := truetype.Parse(goregular.TTF)
-		checkError(err)
-
-		face := truetype.NewFace(font, &truetype.Options{Size: 48})
-
-		//create canvas for image & drawing text
-		dc := gg.NewContext(imgWidth, imgHeight)
-		dc.DrawImage(img, 0, 0)
-		dc.SetFontFace(face)
-		dc.SetColor(color.White)
-
-		//set x/y position of text
-		x := float64(imgWidth / 2)
-		y := float64(imgHeight / 2)
-		maxWidth := float64(imgWidth - 60) //maximum width text can occupy
-
-		dc.DrawStringWrapped(text, x, y, 0.5, 0.5, maxWidth, 1.5, gg.AlignCenter)
-		//check users access
-		if !premium {
-			//draw a watermark
-			dc.DrawStringAnchored("Inspirationifier: Free Version.", 325, y*2-48, 0.5, 0.5)
-		}
-		dc.SavePNG("images/inspirational_image_" + strconv.Itoa(i) + ".png")
-		log.Println("Inspirational image created.")
-		return true
+		return err
 	}
+	//get image size
+	imgWidth := img.Bounds().Dx()
+	imgHeight := img.Bounds().Dy()
+
+	//load in a default font
+	font, err := truetype.Parse(goregular.TTF)
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+
+	face := truetype.NewFace(font, &truetype.Options{Size: 48})
+
+	//create canvas for image & drawing text
+	dc := gg.NewContext(imgWidth, imgHeight)
+	dc.DrawImage(img, 0, 0)
+	dc.SetFontFace(face)
+	dc.SetColor(color.White)
+
+	//set x/y position of text
+	x := float64(imgWidth / 2)
+	y := float64(imgHeight / 2)
+	maxWidth := float64(imgWidth - 60) //maximum width text can occupy
+
+	dc.DrawStringWrapped(text, x, y, 0.5, 0.5, maxWidth, 1.5, gg.AlignCenter)
+	//check users access
+	if !premium {
+		//draw a watermark
+		dc.DrawStringAnchored("Inspirationifier: Free Version.", 325, y*2-48, 0.5, 0.5)
+	}
+	file := "images/inspirational_image_" + uuid + ".png"
+	err = dc.SavePNG(file)
+	if err != nil {
+		return err
+	}
+	log.Println("Inspirational image created: .", file)
+	return nil
 }
 
 func createUserInDb(db *sql.DB) {
@@ -268,23 +326,20 @@ func registerUserInDb(db *sql.DB, username, password string) string {
 		})
 
 		if err, ok := err.(*pq.Error); ok && err.Code.Name() == "unique_violation" {
-			log.Println("User already exists")
-			return `{"msg": "Error: User already exists"}`
+			return "Error - User already exists"
 		}
 		if err != nil {
 			log.Println("Failed to create user: ", err)
-			return `{"msg": "Error: Failed to create user"}`
+			return "Error - Failed to create user"
 		}
-		return `{"msg": "Account created! Proceed to the home page and login."}`
+		return "Account created! Proceed to the home page and login."
 	} else {
 		if username == "" && password == "" {
-			return `{"msg": "Error: Please enter a username and password"}`
+			return "Error - Please enter a username and password"
 		} else if username == "" {
-			return `{"msg": "Error: Please enter a username"}`
+			return "Error - Please enter a username"
 		} else {
-			return `{"msg": "Error: Please enter a password"}`
+			return "Error - Please enter a password"
 		}
-
 	}
-
 }

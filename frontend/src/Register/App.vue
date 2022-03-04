@@ -37,7 +37,7 @@ export default {
       })
       .then((response) =>{
         //display response
-        document.getElementById("register_msg").innerHTML = response.data.msg;
+        document.getElementById("register_msg").innerHTML = response.data.Msg;
       })
       .catch((error) => {
         window.alert(`Login API error: ${error}`);

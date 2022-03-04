@@ -76,11 +76,11 @@ export default {
       })
       .then((response) => {
         //check for error
-        if(response.data.error == "none"){
-          this.img = response.data.image;
-        } else{
-          document.getElementById("img_err").innerHTML = response.data.error;
+        if(response.data.Error != "none"){
+          document.getElementById("img_err").innerHTML = response.data.Error;
+          return;
         }
+         this.img = response.data.Image;
       })
       .catch((error) => {
         window.alert(`API error: ${error}`);
@@ -95,15 +95,15 @@ export default {
         password: this.pass,
       })
       .then((response) =>{
-        if(response.data.status == "success"){
-          this.premium = true;
-          //hide the login form and display a logout button
-          document.getElementById("login").style.display = "none";
-          document.getElementById("display_username").innerHTML = "Logged in as: " + response.data.user;
-          document.getElementById("logged_in").style.display = "initial";
-        }else{
-          document.getElementById("login_msg").innerHTML = response.data.msg;
+        if(response.data.Status != "success"){
+          document.getElementById("login_msg").innerHTML = response.data.Msg;
+          return;
         }
+        this.premium = true;
+        //hide the login form and display a logout button
+        document.getElementById("login").style.display = "none";
+        document.getElementById("display_username").innerHTML = "Logged in as: " + response.data.User;
+        document.getElementById("logged_in").style.display = "initial";
       })
       .catch((error) => {
         window.alert(`Login API error: ${error}`);
